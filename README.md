@@ -1,5 +1,8 @@
 # webgpt-pr-cycle
 
+[![test](https://github.com/capitalparser/webgpt-pr-cycle/actions/workflows/test.yml/badge.svg)](https://github.com/capitalparser/webgpt-pr-cycle/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 Let ChatGPT Web ("WebGPT") implement a GitHub pull request through its own GitHub
 connector, while a local coordinator agent — Claude Code or Codex CLI, either works,
 neither is privileged — drives the conversation, tests the resulting PR in an isolated
@@ -114,6 +117,39 @@ PR, retries on failure — until it reports back `READY_TO_MERGE`, `BLOCKED`, or
 keyed off the state file's basename; two cycles sharing one (e.g. both using the generic
 `cycle.json` from examples) will silently collide on the same chat and can cross-publish a
 comment on the wrong repository's PR. See `SKILL.md`'s Boundary section.
+
+### What the state file actually looks like
+
+Real shape from the first live run (owner/repo and SHAs genericized below; field names and
+structure are exactly what `pr_cycle.py` emits). `cycle --request` produces:
+
+```json
+{
+  "status": "AWAITING_WEBGPT_PR",
+  "iteration": 0,
+  "max_iterations": 5,
+  "task_space": "webgpt-pr-cycle:example-fix",
+  "next_action": "Ask WebGPT to implement and return a PR URL.",
+  "webgpt_prompt": "Implement this request through your existing GitHub connector, open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n<your request>\n\nReply with the pull request URL on its own trailing line as `PR_URL: <url>`."
+}
+```
+
+After the coordinator agent extracts a PR from WebGPT's reply and runs `cycle --pr ...
+--post-comment`, a failing test looks like:
+
+```json
+{
+  "status": "AWAITING_WEBGPT_FIX",
+  "iteration": 1,
+  "next_action": "Send the failure handoff to WebGPT and ask it to update the PR.",
+  "report": { "status": "TEST_FAILED", "commands": [{ "argv": ["pytest", "-q"], "exit_code": 1, "duration_seconds": 0.02 }] },
+  "webgpt_handoff": "<!-- webgpt-pr-cycle -->\n## PR test: TEST_FAILED\n...\n\nPush a fix, then reply with the pull request URL on its own trailing line as `PR_URL: <url>`."
+}
+```
+
+`webgpt_handoff` is typed straight back into the same ChatGPT conversation. Once the test
+passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
+`"Review branch protection and merge the PR."` — the tool stops there.
 
 ## The autonomous loop
 
