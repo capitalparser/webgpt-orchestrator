@@ -45,8 +45,8 @@ Three pieces, each with one job:
   from anything that becomes visible, and persists a small JSON state machine
   (`AWAITING_WEBGPT_PR → AWAITING_WEBGPT_FIX/READY_TO_MERGE`, or `BLOCKED_MAX_ITERATIONS`).
   It never touches a browser and never talks to WebGPT directly.
-- **ego-browser-driven conversation** — a coordinator agent (any LLM agent with a Bash
-  tool and the `ego-browser` CLI installed) opens or reuses a
+- **[ego-browser](https://lite.ego.app/ko)-driven conversation** — a coordinator agent
+  (any LLM agent with a Bash tool and the `ego-browser` CLI installed) opens or reuses a
   browser tab to chatgpt.com, types the prompt `pr_cycle.py` generated, and reads WebGPT's
   reply. This is deliberately *not* a scripted browser automation — ChatGPT's UI changes,
   streaming states vary, and WebGPT occasionally needs a judgment call (a clarifying
@@ -77,8 +77,9 @@ sections before pointing it at anything you care about.
 
 - **`gh` CLI**, authenticated (`gh auth status`), with at least `repo` scope. Add
   `delete_repo` if you want to clean up test repos you create with `--new-repo`.
-- **ego-browser** (a CLI browser-automation tool for LLM agents) installed and logged
-  into chatgpt.com in the profile it drives. The GitHub connector needs to have been
+- **[ego-browser](https://lite.ego.app/ko)** (a CLI browser-automation tool for LLM
+  agents) installed and logged into chatgpt.com in the profile it drives. The GitHub
+  connector needs to have been
   authorized on that account at least once (Settings → Connectors in ChatGPT, or attach it
   from the `+` menu in any chat — the coordinator agent will do the latter automatically).
 - **Python 3.10+** (stdlib only — no dependencies to install for `pr_cycle.py` itself).
