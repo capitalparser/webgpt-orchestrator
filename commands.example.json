@@ -1,0 +1,4 @@
+[
+  ["bun", "test", "tests/*.test.ts"],
+  ["bun", "run", "typecheck"]
+]

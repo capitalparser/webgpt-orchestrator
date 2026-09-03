@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "webgpt-pr-cycle": {
+      "cwd": ".",
+      "command": "python3",
+      "args": [
+        "./scripts/mcp_server.py",
+        "--plugin-dir",
+        "."
+      ]
+    }
+  }
+}

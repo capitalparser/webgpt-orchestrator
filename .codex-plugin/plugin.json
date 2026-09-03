@@ -1,0 +1,34 @@
+{
+  "name": "webgpt-pr-cycle",
+  "version": "0.1.0+codex.20260902152817",
+  "description": "Coordinate WebGPT GitHub PR implementation with isolated Codex testing.",
+  "author": {
+    "name": "Personal Agent System"
+  },
+  "license": "MIT",
+  "keywords": [
+    "webgpt",
+    "github",
+    "pull-request",
+    "testing",
+    "codex"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "WebGPT PR Cycle",
+    "shortDescription": "Test WebGPT PRs in isolated Codex checkouts",
+    "longDescription": "Let WebGPT implement through GitHub while Codex verifies pull requests and publishes test evidence.",
+    "developerName": "Personal Agent System",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Test this WebGPT pull request and report the result.",
+      "Prepare a handoff for WebGPT from the latest PR test.",
+      "Show the current WebGPT PR cycle status."
+    ]
+  }
+}
