@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "webgpt-pr-cycle": {
+    "webgpt-orchestrator": {
       "cwd": ".",
       "command": "python3",
       "args": [

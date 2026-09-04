@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal least-privilege MCP server for the WebGPT PR cycle.
+"""Minimal least-privilege MCP server for WebGPT Orchestrator's Forge Loop.
 
 This server intentionally exposes PR metadata, allowlisted test profiles, and handoff text;
 it does not expose a generic shell, filesystem, or merge tool.
@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from pr_cycle import _comment_markdown, load_commands, resolve_pr, run_test_cycle
+from forge_loop import PRODUCT_ID, _comment_markdown, load_commands, resolve_pr, run_test_cycle
 
 
 TOOL_DEFINITIONS = [
@@ -64,7 +64,7 @@ def dispatch_request(request: dict[str, Any], *, plugin_dir: Path | None = None)
         result = {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "webgpt-pr-cycle", "version": "0.1.0"},
+            "serverInfo": {"name": PRODUCT_ID, "version": "0.1.0"},
         }
     elif method == "notifications/initialized":
         return {}
@@ -101,7 +101,7 @@ def dispatch_request(request: dict[str, Any], *, plugin_dir: Path | None = None)
 
 
 def _parse_pr(arguments: dict[str, Any]) -> tuple[str, int]:
-    from pr_cycle import parse_pr_reference
+    from forge_loop import parse_pr_reference
 
     pr = arguments.get("pr")
     if not isinstance(pr, str):

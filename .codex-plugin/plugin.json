@@ -1,7 +1,7 @@
 {
-  "name": "webgpt-pr-cycle",
+  "name": "webgpt-orchestrator",
   "version": "0.1.0+codex.20260902152817",
-  "description": "Coordinate WebGPT GitHub PR implementation with isolated Codex testing.",
+  "description": "Orchestrate WebGPT, Codex, and Claude into an autonomous delivery loop.",
   "author": {
     "name": "Personal Agent System"
   },
@@ -10,14 +10,17 @@
     "webgpt",
     "github",
     "pull-request",
+    "orchestration",
+    "automation",
     "testing",
-    "codex"
+    "codex",
+    "claude"
   ],
   "skills": "./skills/",
   "interface": {
-    "displayName": "WebGPT PR Cycle",
-    "shortDescription": "Test WebGPT PRs in isolated Codex checkouts",
-    "longDescription": "Let WebGPT implement through GitHub while Codex verifies pull requests and publishes test evidence.",
+    "displayName": "WebGPT Orchestrator",
+    "shortDescription": "Automate delivery with WebGPT, Codex, and Claude",
+    "longDescription": "Use WebGPT's GitHub capabilities while Codex and Claude coordinate planning, implementation, isolated verification, review, and iterative delivery through Forge Loop.",
     "developerName": "Personal Agent System",
     "category": "Developer Tools",
     "capabilities": [
@@ -26,9 +29,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Test this WebGPT pull request and report the result.",
-      "Prepare a handoff for WebGPT from the latest PR test.",
-      "Show the current WebGPT PR cycle status."
+      "Run Forge Loop for this software request.",
+      "Test this WebGPT pull request and prepare the next handoff.",
+      "Show the current WebGPT Orchestrator status."
     ]
   }
 }

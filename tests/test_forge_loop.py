@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
-from pr_cycle import (
+from forge_loop import (
+    _main,
     _comment_markdown,
     build_report,
     create_repo,
@@ -141,9 +142,49 @@ def test_mcp_tools_expose_only_pr_cycle_operations():
     assert "exec" not in names
 
 
+def test_mcp_initialize_uses_orchestrator_product_identity():
+    result = dispatch_request({"jsonrpc": "2.0", "id": 1, "method": "initialize"})
+
+    assert result["result"]["serverInfo"]["name"] == "webgpt-orchestrator"
+
+
 def test_mcp_rejects_unregistered_command_profile(tmp_path):
     with pytest.raises(ValueError, match="unknown command profile"):
         load_profile_commands("arbitrary-shell", tmp_path)
+
+
+def test_cli_help_exposes_forge_as_the_canonical_loop_command(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["forge_loop.py", "--help"])
+
+    with pytest.raises(SystemExit) as exit_info:
+        _main()
+
+    assert exit_info.value.code == 0
+    assert "{status,test,handoff,iterate,forge,cycle}" in capsys.readouterr().out
+
+
+def test_legacy_pr_cycle_entrypoint_still_runs_cycle_alias(tmp_path):
+    state_path = tmp_path / "legacy-cycle.json"
+    entrypoint = Path(__file__).parents[1] / "scripts" / "pr_cycle.py"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(entrypoint),
+            "cycle",
+            "--request",
+            "Add dark mode",
+            "--state",
+            str(state_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert json.loads(completed.stdout)["status"] == "AWAITING_WEBGPT_PR"
+    assert json.loads(state_path.read_text())["request"] == "Add dark mode"
 
 
 def test_start_cycle_derives_task_space_and_default_max_iterations(tmp_path):
@@ -151,7 +192,7 @@ def test_start_cycle_derives_task_space_and_default_max_iterations(tmp_path):
 
     result = start_cycle("Add dark mode", state_path)
 
-    assert result["task_space"] == "webgpt-pr-cycle:add-dark-mode"
+    assert result["task_space"] == "webgpt-orchestrator:add-dark-mode"
     assert result["max_iterations"] == 5
 
 
@@ -337,6 +378,7 @@ def test_comment_markdown_includes_failure_output_when_present():
     )
     report["failure_output"] = "AssertionError: expected 1 got 2"
     markdown = _comment_markdown(report)
+    assert "## Forge Loop PR test: TEST_FAILED" in markdown
     assert "AssertionError: expected 1 got 2" in markdown
 
 
@@ -364,4 +406,3 @@ def test_run_test_cycle_failure_output_reaches_comment_markdown():
 
     report = run_test_cycle("acme/widget#9", [["pytest", "-q"]], runner=fake_runner)
     assert "AssertionError: expected 1 got 2" in report["comment_markdown"]
-

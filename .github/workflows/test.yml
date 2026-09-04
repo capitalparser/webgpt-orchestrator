@@ -17,4 +17,4 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install pytest
-      - run: python -m pytest tests/test_pr_cycle.py -v
+      - run: python -m pytest tests/test_forge_loop.py -v
