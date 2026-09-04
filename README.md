@@ -157,8 +157,10 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 
 1. `forge --request` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
-2. The coordinator agent opens/reuses a browser tab, selects the High reasoning tier and
-   attaches the GitHub connector (only on a genuinely new conversation).
+2. Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
+   Work or Codex—and selects GPT-5.6 Sol Pro. It then attaches the GitHub connector when it
+   is missing. If standard Chat or that exact model is unavailable, it stops without sending
+   a prompt from Work or with a fallback model.
 3. Types the prompt, submits, waits for the reply — no fixed timeout; the agent judges
    when generation has actually finished.
 4. Classifies the finished reply: connector access denied → stop and ask the human to
@@ -171,14 +173,14 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
    don't merge. Hit `--max-iterations` (default 5) → stop, report
    `BLOCKED_MAX_ITERATIONS`, don't keep retrying.
 
-## Reasoning tier: High by default, not Pro
+## Required Chat model: GPT-5.6 Sol Pro
 
-An earlier version of this project defaulted every turn to ChatGPT's Pro reasoning tier.
-The first live run showed Pro taking 20+ minutes on a one-word fix; the same request at
-High finished in 1-2 minutes with no loss of correctness — High still correctly refused an
-inconsistent request instead of guessing. The loop now defaults to High end to end. If a
-request genuinely needs deep up-front design thinking, hold that as its own Pro-tier
-exchange in the same conversation before the implement/iterate turns, which stay at High.
+Every WebGPT conversation turn — planning, implementation, test handoff, and retry — uses
+standard Chat with GPT-5.6 Sol Pro. The coordinator verifies the Chat surface and model
+picker before every submission, even when reusing the conversation. ChatGPT Work, Codex,
+`High`, `Extra High`, automatic reasoning, GPT-6 Pro, and another Pro model are not
+fallbacks. If standard Chat or GPT-5.6 Sol Pro is unavailable for the current account, the
+cycle stops with `BLOCKED_MODEL_UNAVAILABLE` before it sends a prompt.
 
 ## Safety boundaries
 

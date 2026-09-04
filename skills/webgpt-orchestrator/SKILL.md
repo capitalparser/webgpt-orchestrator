@@ -37,8 +37,8 @@ must drive the WebGPT conversation and verify the resulting pull request.
   is derived only from the
   `--state` file's basename, not its directory, so two concurrent cycles that happen to
   share a `--state` filename (e.g. both using the generic `forge.json` from the examples
-  below) collide on the same browser conversation. Because step 2 of the Forge Loop
-  skips re-verifying the reasoning tier/connector on a reused conversation, and
+  below) collide on the same browser conversation. Because a reused conversation can retain
+  the wrong model or connector, and
   `--post-comment` is always on, this can silently cross-contaminate: step 4 may extract
   the *other* cycle's PR URL, and step 5 will then test and auto-publish a redacted
   comment on a PR in a completely unrelated repository. Always give concurrent cycles
@@ -104,11 +104,20 @@ stop condition below applies:
    if two cycles collide on the same task space.
 2. Using ego-browser (`ego-browser nodejs <<'EOF' ... EOF` via Bash), open or reuse the
    task space's chatgpt.com tab.
-   - Only on a genuinely new conversation: select the High reasoning tier in the model
-     picker (default for the whole loop — see the reasoning-tier note below), and confirm
-     the GitHub connector is attached to the conversation (attach it if it is not). Skip
-     re-selecting these on later iterations that reuse the same conversation, unless the
-     connector is observed to be missing.
+   - Use a standard **Chat** conversation, never ChatGPT Work or Codex. Before **every**
+     `webgpt_prompt` or `webgpt_handoff` submission, verify the surface is Chat and inspect
+     the model picker. If the tab is in Work, open a standard Chat conversation; do not send
+     the WebGPT prompt from Work.
+   - In Chat, select **GPT-5.6 Sol Pro**. In picker variants that expose the model and
+     reasoning level separately, select `GPT-5.6 Sol`, then `Pro`. Verify the selected
+     model before sending; do not treat `High`, `Extra High`, automatic reasoning, GPT-6
+     Pro, or an unspecified Pro model as equivalent.
+   - If standard Chat or GPT-5.6 Sol Pro is not offered to the signed-in account, stop with
+     `BLOCKED_MODEL_UNAVAILABLE` and report it to the user. Do not submit the prompt from
+     Work or with a fallback model or reasoning tier.
+   - On a genuinely new conversation, also confirm the GitHub connector is attached
+     (attach it if it is not). On a reused conversation, confirm it again only if it is
+     observed to be missing.
 3. Type the current prompt into the conversation and submit — `webgpt_prompt` on the
    first turn, `webgpt_handoff` on every retry turn.
 4. Observe with `snapshotText`/`wait` until the reply is finished (there is no fixed
@@ -134,17 +143,13 @@ stop condition below applies:
 8. If the result is `BLOCKED_MAX_ITERATIONS`: stop and report to the user — do not keep
    retrying past the cap.
 
-### Reasoning tier: High by default, Pro only for planning
+### Required Chat model: GPT-5.6 Sol Pro
 
-Default the whole loop — the implement turn and every iterate/handoff turn — to the High
-reasoning tier, not Pro. This was Pro by default in an earlier version of this skill;
-a live run showed Pro taking 20+ minutes per turn on a trivial one-word fix, against
-1-2 minutes at High for the same request, with no difference in correctness (High
-correctly detected and refused an inconsistent request in the same way Pro would have).
-If a request genuinely needs deep up-front design work, hold that planning exchange at
-Pro tier as its own turn in the same conversation before sending `webgpt_prompt`, then
-switch to High before continuing the loop — do not run the implement/iterate turns at
-Pro by default.
+Use standard Chat with GPT-5.6 Sol Pro for every WebGPT turn in a Forge Loop: planning,
+implementation, PR-test handoff, and retry. Recheck the Chat surface and model before each
+submission, including submissions in a reused conversation. The loop must not consume a
+ChatGPT Work/Codex allowance or a different model's allowance through a silent fallback. If
+the required Chat surface or model is unavailable, stop before sending the prompt.
 
 ## Stop conditions
 
@@ -153,6 +158,10 @@ configuration, or the isolated test setup cannot be verified. Do not guess a bra
 a local tracking ref as a substitute for the PR head SHA. A missing or unreadable
 `--state` file also surfaces as `BLOCKED` — this list of causes is illustrative, not
 exhaustive.
+
+Stop and report `BLOCKED_MODEL_UNAVAILABLE` if the standard Chat surface or model picker
+cannot be verified, or if it does not offer GPT-5.6 Sol Pro. Do not use ChatGPT Work,
+Codex, or a fallback model.
 
 On any ego-browser hard stop — "user is controlling," a login prompt, or a captcha — do not
 retry the browser action. Hand off the task space to the user and wait for explicit
