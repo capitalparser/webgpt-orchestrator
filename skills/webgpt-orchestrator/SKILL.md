@@ -108,10 +108,10 @@ stop condition below applies:
      `webgpt_prompt` or `webgpt_handoff` submission, verify the surface is Chat and inspect
      the model picker. If the tab is in Work, open a standard Chat conversation; do not send
      the WebGPT prompt from Work.
-   - In Chat, select **GPT-5.6 Pro** and verify that exact label before sending. Do not
+   - In Chat, select **`(5.6) pro`** and verify that exact label before sending. Do not
      treat `High`, `Extra High`, automatic reasoning, GPT-6 Pro, or an unspecified Pro
      model as equivalent.
-   - If standard Chat or GPT-5.6 Pro is not offered to the signed-in account, stop with
+   - If standard Chat or `(5.6) pro` is not offered to the signed-in account, stop with
      `BLOCKED_MODEL_UNAVAILABLE` and report it to the user. Do not submit the prompt from
      Work or with a fallback model or reasoning tier.
    - On a genuinely new conversation, also confirm the GitHub connector is attached
@@ -142,9 +142,9 @@ stop condition below applies:
 8. If the result is `BLOCKED_MAX_ITERATIONS`: stop and report to the user — do not keep
    retrying past the cap.
 
-### Required Chat model: GPT-5.6 Pro
+### Required Chat model: `(5.6) pro`
 
-Use standard Chat with GPT-5.6 Pro for every WebGPT turn in a Forge Loop: planning,
+Use standard Chat with `(5.6) pro` for every WebGPT turn in a Forge Loop: planning,
 implementation, PR-test handoff, and retry. Recheck the Chat surface and model before each
 submission, including submissions in a reused conversation. The loop must not consume a
 ChatGPT Work/Codex allowance or a different model's allowance through a silent fallback. If
@@ -159,7 +159,7 @@ a local tracking ref as a substitute for the PR head SHA. A missing or unreadabl
 exhaustive.
 
 Stop and report `BLOCKED_MODEL_UNAVAILABLE` if the standard Chat surface or model picker
-cannot be verified, or if it does not offer GPT-5.6 Pro. Do not use ChatGPT Work,
+cannot be verified, or if it does not offer `(5.6) pro`. Do not use ChatGPT Work,
 Codex, or a fallback model.
 
 On any ego-browser hard stop — "user is controlling," a login prompt, or a captcha — do not
