@@ -120,10 +120,14 @@ stop condition below applies:
      observed to be missing.
 3. Type the current prompt into the conversation and submit — `webgpt_prompt` on the
    first turn, `webgpt_handoff` on every retry turn.
-4. Observe with `snapshotText`/`wait` until the reply is finished (there is no fixed
-   selector for this — read the current page state each round and judge). Once finished,
-   classify it into exactly one of these three cases — the first two can happen on the very
-   first reply, before `forge --pr` (step 5) has ever been called:
+4. Observe with `snapshotText`/`wait` until the reply is explicitly finished (there is no
+   fixed selector for this — read the current page state each round and judge). The WebGPT
+   response deadline is unbounded: never set or infer a cumulative or wall-clock timeout.
+   Use only short, bounded `wait()` calls (at most 60 seconds per call) so each round can
+   re-check the page, then keep observing. A quiet or slowly streaming reply is not
+   finished, failed, or `BLOCKED` merely because time has elapsed. Once finished, classify
+   it into exactly one of these three cases — the first two can happen on the very first
+   reply, before `forge --pr` (step 5) has ever been called:
    - **Connector access denied.** WebGPT reports it cannot access the repository through
      its GitHub connector (for example, because a GitHub App install is scoped to specific
      repositories and doesn't include a newly-created one): stop, do not retry, and ask the

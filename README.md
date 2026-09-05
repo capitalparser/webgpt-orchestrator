@@ -161,8 +161,10 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
    Work or Codex—and selects the `6 Pro` model-picker label. It then attaches the GitHub
    connector when it is missing. If standard Chat or that exact model is unavailable, it
    stops without sending a prompt from Work or with a fallback model.
-3. Types the prompt, submits, waits for the reply — no fixed timeout; the agent judges
-   when generation has actually finished.
+3. Types the prompt, submits, and waits until the reply is explicitly finished. There is no
+   cumulative or wall-clock response timeout: use short `wait()` calls to re-check the page,
+   then keep observing. A quiet or slowly streaming reply is not finished, failed, or
+   `BLOCKED` merely because time has elapsed.
 4. Classifies the finished reply: connector access denied → stop and ask the human to
    grant access; no PR reference found → ask once for a `PR_URL: <url>` restatement, then
    give up and report `BLOCKED`; PR found → continue.
