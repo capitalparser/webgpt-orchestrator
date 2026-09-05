@@ -25,6 +25,13 @@ must drive the WebGPT conversation and verify the resulting pull request.
   checkout.
 - Never run a test command through a shell string. Commands come from a JSON array
   configuration.
+- Before the first WebGPT prompt, the coordinator must create a **confirmed intent brief**
+  and pass it to `forge --request` as `--intent-brief`. The brief states the user's goal,
+  success criteria, scope or non-goals, constraints, and validation. The coordinator shows
+  that brief to the user before handoff. A current user request counts as confirmation only
+  when it explicitly supplies or endorses every material field; otherwise ask the smallest
+  question that resolves the uncertainty. Never invent confirmation or send an unconfirmed
+  brief to WebGPT.
 - In the Forge Loop, PR test comments publish automatically (`--post-comment` is
   always passed) — redaction already strips secrets and local paths, so this is no longer a
   separate human-confirmation gate.
@@ -72,7 +79,7 @@ python3 scripts/forge_loop.py test --pr <PR URL or number> --commands-json <comm
 python3 scripts/forge_loop.py test --pr <PR URL or number> --commands-json <commands.json> --result <result.json> --post-comment
 python3 scripts/forge_loop.py handoff --result <result.json>
 python3 scripts/forge_loop.py iterate --result <result.json>
-python3 scripts/forge_loop.py forge --request "<request>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]
+python3 scripts/forge_loop.py forge --request "<request>" --intent-brief "<confirmed brief>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]
 python3 scripts/forge_loop.py forge --pr <owner/repository#number> --commands-json <commands.json> --state <state.json> [--post-comment]
 ```
 
@@ -91,10 +98,17 @@ repo). It is only valid together with `--request`; combining it with `--pr` is r
 
 ## Forge Loop (default workflow)
 
-Run this procedure directly — do not stop for human confirmation between steps unless a
-stop condition below applies:
+After the intent brief is confirmed, run this procedure directly — do not stop for another
+human confirmation between steps unless a stop condition below applies:
 
-1. `python3 scripts/forge_loop.py forge --request "<request>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]`.
+0. **Intent preflight — before `forge --request`.** Write a short, user-visible intent
+   brief with these fields: goal, success criteria, scope/non-goals, constraints, and
+   validation. Show it to the user. If the current user request clearly supplies or
+   endorses every material field, restating it is enough and the request itself is the
+   confirmation; do not create a redundant approval turn. If any material field is
+   ambiguous or omitted, ask one focused question and wait. Use the confirmed wording
+   verbatim as `--intent-brief`; do not substitute coordinator assumptions.
+1. `python3 scripts/forge_loop.py forge --request "<request>" --intent-brief "<confirmed brief>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]`.
    This provisions a new repository first when `--new-repo` is given, and produces
    `state.json` with `status: AWAITING_WEBGPT_PR`, `webgpt_prompt`, and a deterministic
    `task_space` name derived from the state file (e.g. `forge.json` becomes
@@ -142,7 +156,9 @@ stop condition below applies:
    - **PR reference found.** Extract the PR ref and continue to step 5.
 5. `python3 scripts/forge_loop.py forge --pr <owner/repo#n> --commands-json <commands.json> --state <state.json> --post-comment`.
 6. If the result is `AWAITING_WEBGPT_FIX`: type the new `webgpt_handoff` text back into the
-   same conversation (return to step 3).
+   same conversation (return to step 3). Do not ask the user to reconfirm the intent for a
+   test-only retry. Return to intent preflight only if the requested fix changes the goal,
+   success criteria, scope, constraints, or validation.
 7. If the result is `READY_TO_MERGE`: stop and report to the user. Do not merge.
 8. If the result is `BLOCKED_MAX_ITERATIONS`: stop and report to the user — do not keep
    retrying past the cap.
@@ -166,6 +182,10 @@ exhaustive.
 Stop and report `BLOCKED_MODEL_UNAVAILABLE` if the standard Chat surface or model picker
 cannot be verified, or if it does not offer `6 Pro`. Do not use ChatGPT Work,
 Codex, or a fallback model.
+
+Stop and report `BLOCKED_INTENT_UNCONFIRMED` before opening or sending a first WebGPT prompt
+if the intent brief is missing, lacks a material field, or has not been confirmed by the
+user. Do not treat a coordinator's inference as confirmation.
 
 On any ego-browser hard stop — "user is controlling," a login prompt, or a captcha — do not
 retry the browser action. Hand off the task space to the user and wait for explicit

@@ -21,6 +21,15 @@ from forge_loop import (
 from mcp_server import dispatch_request, load_profile_commands
 
 
+INTENT_BRIEF = (
+    "Goal: add dark mode.\n"
+    "Success: preferences persist across reloads.\n"
+    "Scope: existing web app only.\n"
+    "Constraints: keep accessibility contrast.\n"
+    "Validation: run the frontend test suite."
+)
+
+
 def test_parse_pr_url_returns_repository_and_number():
     assert parse_pr_reference("https://github.com/acme/widget/pull/42") == ("acme/widget", 42)
 
@@ -103,17 +112,34 @@ def test_run_test_cycle_reports_failure_and_only_comments_when_explicit():
 def test_start_cycle_creates_webgpt_handoff_state(tmp_path):
     state_path = tmp_path / "cycle.json"
 
-    result = start_cycle("Add dark mode", state_path)
+    result = start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF)
 
     assert result["status"] == "AWAITING_WEBGPT_PR"
     assert result["request"] == "Add dark mode"
-    assert result["next_action"] == "Ask WebGPT to implement and return a PR URL."
+    assert result["next_action"] == "Send the confirmed user intent to WebGPT and return a PR URL."
     assert json.loads(state_path.read_text())["iteration"] == 0
+
+
+def test_start_cycle_includes_confirmed_intent_brief_in_webgpt_handoff(tmp_path):
+    state_path = tmp_path / "cycle.json"
+    intent_brief = (
+        "Goal: add dark mode.\n"
+        "Success: preferences persist across reloads.\n"
+        "Scope: existing web app only.\n"
+        "Constraints: keep accessibility contrast.\n"
+        "Validation: run the frontend test suite."
+    )
+
+    result = start_cycle("Add dark mode", state_path, intent_brief=intent_brief)
+
+    assert result["intent_brief"] == intent_brief
+    assert "## Confirmed user intent\n" + intent_brief in result["webgpt_prompt"]
+    assert json.loads(state_path.read_text())["intent_brief"] == intent_brief
 
 
 def test_resume_cycle_updates_state_and_returns_merge_gate(tmp_path):
     state_path = tmp_path / "cycle.json"
-    start_cycle("Add dark mode", state_path)
+    start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF)
     sha = "d" * 40
 
     def fake_runner(argv, **kwargs):
@@ -174,6 +200,8 @@ def test_legacy_pr_cycle_entrypoint_still_runs_cycle_alias(tmp_path):
             "cycle",
             "--request",
             "Add dark mode",
+            "--intent-brief",
+            INTENT_BRIEF,
             "--state",
             str(state_path),
         ],
@@ -187,10 +215,38 @@ def test_legacy_pr_cycle_entrypoint_still_runs_cycle_alias(tmp_path):
     assert json.loads(state_path.read_text())["request"] == "Add dark mode"
 
 
+def test_forge_request_requires_confirmed_intent_brief(tmp_path):
+    entrypoint = Path(__file__).parents[1] / "scripts" / "forge_loop.py"
+    state_path = tmp_path / "cycle.json"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(entrypoint),
+            "forge",
+            "--request",
+            "Add dark mode",
+            "--state",
+            str(state_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "--intent-brief" in json.loads(completed.stdout)["error"]
+
+
+def test_start_cycle_rejects_an_empty_intent_brief(tmp_path):
+    with pytest.raises(ValueError, match="intent brief"):
+        start_cycle("Add dark mode", tmp_path / "cycle.json", intent_brief="   ")
+
+
 def test_start_cycle_derives_task_space_and_default_max_iterations(tmp_path):
     state_path = tmp_path / "add-dark-mode.json"
 
-    result = start_cycle("Add dark mode", state_path)
+    result = start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF)
 
     assert result["task_space"] == "webgpt-orchestrator:add-dark-mode"
     assert result["max_iterations"] == 5
@@ -199,19 +255,19 @@ def test_start_cycle_derives_task_space_and_default_max_iterations(tmp_path):
 def test_start_cycle_accepts_custom_max_iterations(tmp_path):
     state_path = tmp_path / "cycle.json"
 
-    result = start_cycle("Add dark mode", state_path, max_iterations=2)
+    result = start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF, max_iterations=2)
 
     assert result["max_iterations"] == 2
 
 
 def test_start_cycle_rejects_non_positive_max_iterations(tmp_path):
     with pytest.raises(ValueError, match="max_iterations"):
-        start_cycle("Add dark mode", tmp_path / "cycle.json", max_iterations=0)
+        start_cycle("Add dark mode", tmp_path / "cycle.json", intent_brief=INTENT_BRIEF, max_iterations=0)
 
 
 def test_resume_cycle_blocks_once_max_iterations_reached(tmp_path):
     state_path = tmp_path / "cycle.json"
-    start_cycle("Add dark mode", state_path, max_iterations=1)
+    start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF, max_iterations=1)
     sha = "e" * 40
 
     def fake_runner(argv, **kwargs):
@@ -299,7 +355,9 @@ def test_start_cycle_with_new_repo_provisions_and_embeds_repository(tmp_path):
         payload = {"full_name": "acme/widget", "html_url": "https://github.com/acme/widget"}
         return subprocess.CompletedProcess(argv, 0, json.dumps(payload))
 
-    result = start_cycle("Add dark mode", state_path, new_repo="widget", runner=fake_runner)
+    result = start_cycle(
+        "Add dark mode", state_path, intent_brief=INTENT_BRIEF, new_repo="widget", runner=fake_runner
+    )
 
     assert "acme/widget" in result["webgpt_prompt"]
     assert "Do not create a new repository" in result["webgpt_prompt"]
@@ -313,43 +371,49 @@ def test_start_cycle_without_new_repo_does_not_call_gh(tmp_path):
         calls.append(argv)
         return subprocess.CompletedProcess(argv, 0, "")
 
-    start_cycle("Add dark mode", tmp_path / "cycle.json", runner=fake_runner)
+    start_cycle("Add dark mode", tmp_path / "cycle.json", intent_brief=INTENT_BRIEF, runner=fake_runner)
 
     assert calls == []
 
 
 def test_validate_cycle_arguments_rejects_request_and_pr_together():
     with pytest.raises(ValueError, match="either --request or --pr"):
-        validate_cycle_arguments(request="do it", pr="acme/widget#1", new_repo=None, public=False)
+        validate_cycle_arguments(
+            request="do it", intent_brief=INTENT_BRIEF, pr="acme/widget#1", new_repo=None, public=False
+        )
 
 
 def test_validate_cycle_arguments_rejects_new_repo_with_pr():
     with pytest.raises(ValueError, match="only valid with --request"):
-        validate_cycle_arguments(request=None, pr="acme/widget#1", new_repo="widget", public=False)
+        validate_cycle_arguments(
+            request=None, intent_brief=None, pr="acme/widget#1", new_repo="widget", public=False
+        )
 
 
 def test_validate_cycle_arguments_rejects_public_with_pr():
     with pytest.raises(ValueError, match="only valid with --request"):
-        validate_cycle_arguments(request=None, pr="acme/widget#1", new_repo=None, public=True)
+        validate_cycle_arguments(request=None, intent_brief=None, pr="acme/widget#1", new_repo=None, public=True)
 
 
 def test_validate_cycle_arguments_requires_one_of_request_or_pr():
     with pytest.raises(ValueError, match="requires --request or --pr"):
-        validate_cycle_arguments(request=None, pr=None, new_repo=None, public=False)
+        validate_cycle_arguments(request=None, intent_brief=None, pr=None, new_repo=None, public=False)
 
 
 def test_validate_cycle_arguments_accepts_request_with_new_repo():
-    validate_cycle_arguments(request="do it", pr=None, new_repo="widget", public=True)
+    validate_cycle_arguments(
+        request="do it", intent_brief=INTENT_BRIEF, pr=None, new_repo="widget", public=True
+    )
 
 
 def test_start_cycle_prompt_requests_pr_url_trailer(tmp_path):
-    result = start_cycle("Add dark mode", tmp_path / "cycle.json")
+    result = start_cycle("Add dark mode", tmp_path / "cycle.json", intent_brief=INTENT_BRIEF)
     assert "PR_URL: <url>" in result["webgpt_prompt"]
 
 
 def test_resume_cycle_handoff_requests_pr_url_trailer(tmp_path):
     state_path = tmp_path / "cycle.json"
-    start_cycle("Add dark mode", state_path)
+    start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF)
     sha = "f" * 40
 
     def fake_runner(argv, **kwargs):

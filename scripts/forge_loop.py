@@ -273,10 +273,18 @@ def derive_task_space(state_path: Path) -> str:
     return f"{PRODUCT_ID}:{state_path.stem}"
 
 
+def normalize_intent_brief(intent_brief: str | None) -> str:
+    """Return a non-empty user-confirmed intent brief for the first WebGPT handoff."""
+    if not isinstance(intent_brief, str) or not (normalized := intent_brief.strip()):
+        raise ValueError("Forge Loop intent brief must not be empty")
+    return normalized
+
+
 def start_cycle(
     request: str,
     state_path: Path,
     *,
+    intent_brief: str | None = None,
     max_iterations: int = 5,
     new_repo: str | None = None,
     public: bool = False,
@@ -286,6 +294,7 @@ def start_cycle(
     request = request.strip()
     if not request:
         raise ValueError("Forge Loop request must not be empty")
+    intent_brief = normalize_intent_brief(intent_brief)
     if max_iterations < 1:
         raise ValueError("max_iterations must be at least 1")
     repository_notice = ""
@@ -298,15 +307,20 @@ def start_cycle(
     state = {
         "status": "AWAITING_WEBGPT_PR",
         "request": request,
+        "intent_brief": intent_brief,
         "pr_ref": None,
         "iteration": 0,
         "max_iterations": max_iterations,
         "task_space": derive_task_space(state_path),
-        "next_action": "Ask WebGPT to implement and return a PR URL.",
+        "next_action": "Send the confirmed user intent to WebGPT and return a PR URL.",
         "webgpt_prompt": (
             repository_notice
-            + "Implement this request through your existing GitHub connector, open a PR, "
-            "and return the exact PR URL and head SHA. Do not merge it.\n\n" + request
+            + "Implement the confirmed user intent below through your existing GitHub connector, "
+            "open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n"
+            "## Confirmed user intent\n"
+            + intent_brief
+            + "\n\n## Implementation request\n"
+            + request
             + "\n\nReply with the pull request URL on its own trailing line as `PR_URL: <url>`."
         ),
     }
@@ -368,10 +382,19 @@ def resume_cycle(
 
 
 def validate_cycle_arguments(
-    *, request: str | None, pr: str | None, new_repo: str | None, public: bool
+    *,
+    request: str | None,
+    intent_brief: str | None,
+    pr: str | None,
+    new_repo: str | None,
+    public: bool,
 ) -> None:
     if request and pr:
         raise ValueError("forge accepts either --request or --pr, not both")
+    if request and not intent_brief:
+        raise ValueError("forge --request requires --intent-brief after user confirmation")
+    if intent_brief and not request:
+        raise ValueError("--intent-brief is only valid with --request")
     if pr and (new_repo or public):
         raise ValueError("--new-repo/--public are only valid with --request")
     if not request and not pr:
@@ -398,6 +421,7 @@ def _main() -> int:
     )
     forge.add_argument("--state", type=Path, required=True)
     forge.add_argument("--request")
+    forge.add_argument("--intent-brief")
     forge.add_argument("--pr")
     forge.add_argument("--commands-json", type=Path)
     forge.add_argument("--post-comment", action="store_true")
@@ -421,12 +445,17 @@ def _main() -> int:
             print(report.get("comment_markdown", "No report comment available."))
         else:
             validate_cycle_arguments(
-                request=args.request, pr=args.pr, new_repo=args.new_repo, public=args.public
+                request=args.request,
+                intent_brief=args.intent_brief,
+                pr=args.pr,
+                new_repo=args.new_repo,
+                public=args.public,
             )
             if args.request:
                 result = start_cycle(
                     args.request,
                     args.state,
+                    intent_brief=args.intent_brief,
                     max_iterations=args.max_iterations,
                     new_repo=args.new_repo,
                     public=args.public,
