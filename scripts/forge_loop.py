@@ -280,11 +280,19 @@ def normalize_intent_brief(intent_brief: str | None) -> str:
     return normalized
 
 
+def normalize_webgpt_question(webgpt_question: str | None) -> str:
+    """Return a non-empty question confirmed in the coordinator's CLI conversation."""
+    if not isinstance(webgpt_question, str) or not (normalized := webgpt_question.strip()):
+        raise ValueError("Forge Loop WebGPT question must not be empty")
+    return normalized
+
+
 def start_cycle(
     request: str,
     state_path: Path,
     *,
     intent_brief: str | None = None,
+    webgpt_question: str | None = None,
     max_iterations: int = 5,
     new_repo: str | None = None,
     public: bool = False,
@@ -295,6 +303,7 @@ def start_cycle(
     if not request:
         raise ValueError("Forge Loop request must not be empty")
     intent_brief = normalize_intent_brief(intent_brief)
+    webgpt_question = normalize_webgpt_question(webgpt_question)
     if max_iterations < 1:
         raise ValueError("max_iterations must be at least 1")
     repository_notice = ""
@@ -308,16 +317,19 @@ def start_cycle(
         "status": "AWAITING_WEBGPT_PR",
         "request": request,
         "intent_brief": intent_brief,
+        "webgpt_question": webgpt_question,
         "pr_ref": None,
         "iteration": 0,
         "max_iterations": max_iterations,
         "task_space": derive_task_space(state_path),
-        "next_action": "Send the confirmed user intent to WebGPT and return a PR URL.",
+        "next_action": "Send the confirmed WebGPT question and user intent, then return a PR URL.",
         "webgpt_prompt": (
             repository_notice
-            + "Implement the confirmed user intent below through your existing GitHub connector, "
+            + "Follow the confirmed WebGPT question and user intent below through your existing GitHub connector, "
             "open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n"
-            "## Confirmed user intent\n"
+            "## Confirmed WebGPT question\n"
+            + webgpt_question
+            + "\n\n## Confirmed user intent\n"
             + intent_brief
             + "\n\n## Implementation request\n"
             + request
@@ -388,13 +400,18 @@ def validate_cycle_arguments(
     pr: str | None,
     new_repo: str | None,
     public: bool,
+    webgpt_question: str | None = None,
 ) -> None:
     if request and pr:
         raise ValueError("forge accepts either --request or --pr, not both")
     if request and not intent_brief:
         raise ValueError("forge --request requires --intent-brief after user confirmation")
+    if request and not webgpt_question:
+        raise ValueError("forge --request requires --webgpt-question before WebGPT handoff")
     if intent_brief and not request:
         raise ValueError("--intent-brief is only valid with --request")
+    if webgpt_question and not request:
+        raise ValueError("--webgpt-question is only valid with --request")
     if pr and (new_repo or public):
         raise ValueError("--new-repo/--public are only valid with --request")
     if not request and not pr:
@@ -422,6 +439,7 @@ def _main() -> int:
     forge.add_argument("--state", type=Path, required=True)
     forge.add_argument("--request")
     forge.add_argument("--intent-brief")
+    forge.add_argument("--webgpt-question")
     forge.add_argument("--pr")
     forge.add_argument("--commands-json", type=Path)
     forge.add_argument("--post-comment", action="store_true")
@@ -450,12 +468,14 @@ def _main() -> int:
                 pr=args.pr,
                 new_repo=args.new_repo,
                 public=args.public,
+                webgpt_question=args.webgpt_question,
             )
             if args.request:
                 result = start_cycle(
                     args.request,
                     args.state,
                     intent_brief=args.intent_brief,
+                    webgpt_question=args.webgpt_question,
                     max_iterations=args.max_iterations,
                     new_repo=args.new_repo,
                     public=args.public,

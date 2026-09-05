@@ -17,10 +17,11 @@ The top rail is the one-way delivery path. Test failure follows the separate low
 lane; success reaches a protected merge gate. That separation keeps the implementation
 path, feedback loop, and merge decision legible at a glance.
 
-Before the first WebGPT handoff, the coordinator turns the user's request into a confirmed
-intent brief. That brief is shown to the user, stored with the Forge Loop state, and placed
-in the first WebGPT prompt so implementation starts from the intended outcome rather than a
-coordinator's guess.
+Before the first WebGPT handoff, the coordinator stays in its CLI/chat conversation to
+confirm the exact question for WebGPT and the user's intent brief. Both are shown to the
+user, stored with the Forge Loop state, and placed in the first WebGPT prompt so
+implementation starts from the intended question and outcome rather than a coordinator's
+guess.
 
 ## Why this exists
 
@@ -97,34 +98,40 @@ Clone this repo, then from its root:
 # Against an existing repository
 python3 scripts/forge_loop.py forge \
   --request "In owner/repo, on main, add a CONTRIBUTING.md covering PR conventions." \
+  --webgpt-question "Create the CONTRIBUTING.md in owner/repo, open a PR, and return its URL." \
   --intent-brief "Goal: document PR conventions. Success: contributors can follow the contribution flow. Scope: CONTRIBUTING.md only. Constraints: preserve existing repository practices. Validation: review the rendered Markdown." \
   --state /tmp/webgpt-cycles/contributing-doc.json
 
 # Or have it provision a brand-new (private by default) repository first
 python3 scripts/forge_loop.py forge \
   --request "Scaffold a minimal FastAPI app with a /healthz endpoint and one test." \
+  --webgpt-question "Create the minimal FastAPI app, open a PR, and return its URL." \
   --intent-brief "Goal: create a minimal health-check service. Success: /healthz and one test work. Scope: minimal FastAPI app. Constraints: private repository. Validation: run the included test." \
   --state /tmp/webgpt-cycles/new-fastapi-app.json \
   --new-repo my-new-fastapi-app
 ```
 
-Then hand that off to a coordinator agent with: *"Confirm the intent brief with me, then
-follow `SKILL.md`'s Forge Loop for this cycle."* From the confirmed brief onward it runs
-unattended — opens the browser, drives WebGPT, tests each PR, retries on failure — until it
-reports back `READY_TO_MERGE`, `BLOCKED`, or `BLOCKED_MAX_ITERATIONS`. You still do the merge
-yourself.
+Then hand that off to a coordinator agent with: *"In this CLI chat, first confirm exactly
+what to ask WebGPT and the intent brief with me. Then follow `SKILL.md`'s Forge Loop for this
+cycle."* A skill reference alone does not open the browser or start a Forge state. From the
+confirmed delegation brief onward it runs unattended — opens the browser, drives WebGPT,
+tests each PR, retries on failure — until it reports back `READY_TO_MERGE`, `BLOCKED`, or
+`BLOCKED_MAX_ITERATIONS`. You still do the merge yourself.
 
 **Give every concurrent cycle a distinct `--state` filename.** The browser conversation is
 keyed off the state file's basename; two cycles sharing one (e.g. both using the generic
 `forge.json` from examples) will silently collide on the same chat and can cross-publish a
 comment on the wrong repository's PR. See `SKILL.md`'s Boundary section.
 
-### Intent briefing comes before WebGPT
+### CLI-first delegation briefing comes before WebGPT
 
-The first WebGPT prompt is only as good as the user's intended outcome. Before running
-`forge --request`, the coordinator writes and shows this compact brief:
+The first WebGPT prompt is only as good as the exact question and intended outcome. Merely
+mentioning or loading the skill does not start WebGPT. Before running `forge --request` or
+opening a browser, the coordinator stays in the CLI/chat and writes and shows this compact
+brief:
 
 ```text
+WebGPT question: the exact action or answer requested from WebGPT, plus expected artifact/reply
 Goal: the outcome the user wants
 Success: observable completion criteria
 Scope / non-goals: what changes and what does not
@@ -133,10 +140,11 @@ Validation: commands or evidence that prove the result
 ```
 
 The current user request may count as confirmation when it explicitly supplies or endorses
-every material field; the coordinator restates it and proceeds without a redundant approval
-turn. Otherwise, the coordinator asks one focused question and waits. `forge --request`
-requires the resulting `--intent-brief`; it refuses to start without one. Test-failure
-handoffs keep using that confirmed brief and do not ask again unless the fix changes it.
+every material field and the exact WebGPT question; the coordinator restates it and proceeds
+without a redundant approval turn. Otherwise, the coordinator asks one focused question and
+waits. `forge --request` requires both `--webgpt-question` and `--intent-brief`; it refuses
+to start without either. Test-failure handoffs keep using that confirmed delegation brief and
+do not ask again unless the fix changes it.
 
 ### What the state file actually looks like
 
@@ -149,9 +157,10 @@ structure are exactly what `forge_loop.py` emits). `forge --request` produces:
   "iteration": 0,
   "max_iterations": 5,
   "task_space": "webgpt-orchestrator:example-fix",
+  "webgpt_question": "<confirmed question>",
   "intent_brief": "Goal: ...\nSuccess: ...\nScope / non-goals: ...\nConstraints: ...\nValidation: ...",
-  "next_action": "Send the confirmed user intent to WebGPT and return a PR URL.",
-  "webgpt_prompt": "Implement the confirmed user intent below through your existing GitHub connector, open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n## Confirmed user intent\n<confirmed brief>\n\n## Implementation request\n<your request>\n\nReply with the pull request URL on its own trailing line as `PR_URL: <url>`."
+  "next_action": "Send the confirmed WebGPT question and user intent, then return a PR URL.",
+  "webgpt_prompt": "Follow the confirmed WebGPT question and user intent below through your existing GitHub connector, open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n## Confirmed WebGPT question\n<confirmed question>\n\n## Confirmed user intent\n<confirmed brief>\n\n## Implementation request\n<your request>\n\nReply with the pull request URL on its own trailing line as `PR_URL: <url>`."
 }
 ```
 
@@ -174,10 +183,11 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 
 ## The Forge Loop
 
-0. Before `forge --request`, the coordinator confirms the intent brief above with the user.
-   A clear, current user request may be restated as confirmation; unresolved material
-   choices require one focused question before any WebGPT prompt is sent.
-1. `forge --request --intent-brief "<confirmed brief>"` creates `state.json`, optionally provisioning a new repo first
+0. Before `forge --request` or any browser action, the coordinator confirms the exact
+   WebGPT question and delegation brief above with the user in its CLI/chat. A clear,
+   current user request may be restated as confirmation; a skill reference or unresolved
+   material choice requires one focused question before any WebGPT prompt is sent.
+1. `forge --request --webgpt-question "<confirmed question>" --intent-brief "<confirmed brief>"` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
 2. Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
    Work or Codex—and selects the `6 Pro` model-picker label. It then attaches the GitHub
@@ -193,9 +203,9 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 5. `forge --pr <owner/repo#n> ... --post-comment` tests the immutable PR head SHA in an
    isolated checkout and publishes the result as an actual PR comment.
 6. Failure → the failure output (redacted) gets typed back into the same conversation as a
-   handoff, and the loop returns to step 3 without re-confirming the brief. If a requested
-   fix changes that brief, return to step 0. Success → stop, report `READY_TO_MERGE`, don't
-   merge. Hit `--max-iterations` (default 5) → stop, report
+   handoff, and the loop returns to step 3 without re-confirming the delegation brief. If a
+   requested fix changes the question or brief, return to step 0. Success → stop, report
+   `READY_TO_MERGE`, don't merge. Hit `--max-iterations` (default 5) → stop, report
    `BLOCKED_MAX_ITERATIONS`, don't keep retrying.
 
 ## Required Chat model: `6 Pro`
@@ -228,7 +238,7 @@ python3 scripts/forge_loop.py status --pr <PR URL or number>
 python3 scripts/forge_loop.py test --pr <PR URL or number> --commands-json <commands.json> --result <result.json> [--post-comment]
 python3 scripts/forge_loop.py handoff --result <result.json>
 python3 scripts/forge_loop.py iterate --result <result.json>
-python3 scripts/forge_loop.py forge --request "<request>" --intent-brief "<confirmed brief>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]
+python3 scripts/forge_loop.py forge --request "<request>" --webgpt-question "<confirmed question>" --intent-brief "<confirmed brief>" --state <state.json> [--new-repo <name>] [--public] [--max-iterations N]
 python3 scripts/forge_loop.py forge --pr <owner/repository#number> --commands-json <commands.json> --state <state.json> [--post-comment]
 ```
 
