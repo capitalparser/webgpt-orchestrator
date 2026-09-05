@@ -158,9 +158,9 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 1. `forge --request` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
 2. Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
-   Work or Codex—and selects `(5.6) pro`. It then attaches the GitHub connector when it
-   is missing. If standard Chat or that exact model is unavailable, it stops without sending
-   a prompt from Work or with a fallback model.
+   Work or Codex—and selects the `6 Pro` model-picker label. It then attaches the GitHub
+   connector when it is missing. If standard Chat or that exact model is unavailable, it
+   stops without sending a prompt from Work or with a fallback model.
 3. Types the prompt, submits, waits for the reply — no fixed timeout; the agent judges
    when generation has actually finished.
 4. Classifies the finished reply: connector access denied → stop and ask the human to
@@ -173,14 +173,14 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
    don't merge. Hit `--max-iterations` (default 5) → stop, report
    `BLOCKED_MAX_ITERATIONS`, don't keep retrying.
 
-## Required Chat model: `(5.6) pro`
+## Required Chat model: `6 Pro`
 
 Every WebGPT conversation turn — planning, implementation, test handoff, and retry — uses
-standard Chat with `(5.6) pro`. The coordinator verifies the Chat surface and model
-picker before every submission, even when reusing the conversation. ChatGPT Work, Codex,
-`High`, `Extra High`, automatic reasoning, GPT-6 Pro, and another Pro model are not
-fallbacks. If standard Chat or `(5.6) pro` is unavailable for the current account, the
-cycle stops with `BLOCKED_MODEL_UNAVAILABLE` before it sends a prompt.
+standard Chat with `6 Pro`. The coordinator verifies the Chat surface and model picker
+before every submission, even when reusing the conversation. ChatGPT Work, Codex, `High`,
+`Extra High`, automatic reasoning, and another Pro model are not fallbacks. If standard
+Chat or `6 Pro` is unavailable for the current account, the cycle stops with
+`BLOCKED_MODEL_UNAVAILABLE` before it sends a prompt.
 
 ## Safety boundaries
 
