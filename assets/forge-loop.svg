@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="760" viewBox="0 0 1440 760" role="img" aria-labelledby="title desc">
+  <title id="title">WebGPT Orchestrator Forge Loop</title>
+  <desc id="desc">A four-stage delivery path from request to WebGPT Chat 6 Pro, GitHub pull request, and Codex immutable-SHA verification. Failed tests return through a separate lower handoff loop; successful tests continue to a protected merge gate.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#121f3a"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#54d9ff"/>
+      <stop offset="1" stop-color="#8878ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+    <marker id="arrow-blue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#74d8ff"/>
+    </marker>
+    <marker id="arrow-red" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#fb7185"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#6ee7b7"/>
+    </marker>
+    <style>
+      .eyebrow { fill: #9fb1cf; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 700; letter-spacing: 2.2px; }
+      .heading { fill: #f8fafc; font-family: Arial, Helvetica, sans-serif; font-size: 33px; font-weight: 700; letter-spacing: -0.7px; }
+      .card-title { fill: #f8fafc; font-family: Arial, Helvetica, sans-serif; font-size: 21px; font-weight: 700; }
+      .card-body { fill: #b8c6dc; font-family: Arial, Helvetica, sans-serif; font-size: 15px; font-weight: 500; }
+      .tag { fill: #dbeafe; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.25px; }
+      .lane-label { fill: #b8c6dc; font-family: Arial, Helvetica, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1.15px; }
+      .small { fill: #9fb1cf; font-family: Arial, Helvetica, sans-serif; font-size: 13px; font-weight: 600; }
+    </style>
+  </defs>
+
+  <rect width="1440" height="760" rx="28" fill="url(#background)"/>
+  <circle cx="1342" cy="75" r="175" fill="#4338ca" opacity="0.13"/>
+  <circle cx="104" cy="732" r="170" fill="#0ea5e9" opacity="0.10"/>
+
+  <text x="72" y="70" class="eyebrow">WEBGPT ORCHESTRATOR</text>
+  <text x="72" y="113" class="heading">One delivery loop. Clear ownership at every handoff.</text>
+  <rect x="72" y="138" width="1288" height="2" rx="1" fill="url(#accent)" opacity="0.9"/>
+
+  <text x="72" y="171" class="lane-label">DELIVERY PATH</text>
+
+  <!-- Main delivery cards -->
+  <g filter="url(#shadow)">
+    <rect x="60" y="194" width="220" height="142" rx="18" fill="#17233c" stroke="#334155"/>
+    <rect x="345" y="194" width="300" height="142" rx="18" fill="#17233c" stroke="#38bdf8" stroke-opacity="0.75"/>
+    <rect x="710" y="194" width="220" height="142" rx="18" fill="#17233c" stroke="#64748b"/>
+    <rect x="995" y="194" width="300" height="142" rx="18" fill="#17233c" stroke="#a78bfa" stroke-opacity="0.75"/>
+  </g>
+
+  <!-- Stage 1 -->
+  <rect x="82" y="215" width="39" height="30" rx="15" fill="#0e7490"/>
+  <text x="101.5" y="236" text-anchor="middle" class="tag">01</text>
+  <text x="82" y="279" class="card-title">Request</text>
+  <text x="82" y="306" class="card-body">Scope · repository · tests</text>
+
+  <!-- Stage 2 -->
+  <rect x="367" y="215" width="96" height="30" rx="15" fill="#155e75"/>
+  <text x="415" y="236" text-anchor="middle" class="tag">CHAT · 6 PRO</text>
+  <text x="367" y="279" class="card-title">WebGPT</text>
+  <text x="367" y="306" class="card-body">Plan and implement via GitHub</text>
+
+  <!-- Stage 3 -->
+  <rect x="732" y="215" width="39" height="30" rx="15" fill="#334155"/>
+  <text x="751.5" y="236" text-anchor="middle" class="tag">03</text>
+  <text x="732" y="279" class="card-title">GitHub PR</text>
+  <text x="732" y="306" class="card-body">Implementation boundary</text>
+
+  <!-- Stage 4 -->
+  <rect x="1017" y="215" width="39" height="30" rx="15" fill="#5b21b6"/>
+  <text x="1036.5" y="236" text-anchor="middle" class="tag">04</text>
+  <text x="1017" y="279" class="card-title">Codex verification</text>
+  <text x="1017" y="306" class="card-body">Isolated checkout at PR SHA</text>
+
+  <!-- Main arrows: intentionally separate from the lower feedback loop -->
+  <path d="M 280 265 H 337" stroke="#74d8ff" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+  <path d="M 645 265 H 702" stroke="#74d8ff" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+  <path d="M 930 265 H 987" stroke="#74d8ff" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-blue)"/>
+
+  <!-- Feedback loop: its own lower lane so it never crosses the main path -->
+  <text x="72" y="397" class="lane-label">RESULT ROUTING</text>
+  <path d="M 1085 336 V 431 H 495 V 336" fill="none" stroke="#fb7185" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
+  <rect x="703" y="454" width="198" height="38" rx="19" fill="#3b1725" stroke="#fb7185" stroke-opacity="0.7"/>
+  <text x="802" y="478" text-anchor="middle" class="tag">TEST_FAILED · HANDOFF</text>
+  <text x="495" y="493" text-anchor="middle" class="small">Redacted feedback returns to the same Chat conversation</text>
+
+  <!-- Success route deliberately occupies the right side -->
+  <path d="M 1210 336 V 505" fill="none" stroke="#6ee7b7" stroke-width="4" stroke-linecap="round" marker-end="url(#arrow-green)"/>
+  <rect x="1050" y="515" width="320" height="106" rx="18" fill="#10302d" stroke="#34d399" stroke-opacity="0.75" filter="url(#shadow)"/>
+  <rect x="1072" y="536" width="138" height="29" rx="14.5" fill="#065f46"/>
+  <text x="1141" y="556" text-anchor="middle" class="tag">READY_TO_MERGE</text>
+  <text x="1072" y="591" class="card-title">Protected merge gate</text>
+  <text x="1072" y="613" class="card-body">Report success — never auto-merge</text>
+
+  <!-- Guardrail footer -->
+  <rect x="60" y="666" width="1315" height="48" rx="14" fill="#0f1b31" stroke="#334155" stroke-dasharray="5 6"/>
+  <text x="87" y="696" class="small">Guardrails</text>
+  <circle cx="198" cy="691" r="4" fill="#f59e0b"/>
+  <text x="213" y="696" class="small">GitHub connector only</text>
+  <circle cx="431" cy="691" r="4" fill="#f59e0b"/>
+  <text x="446" y="696" class="small">No shell or filesystem for WebGPT</text>
+  <circle cx="783" cy="691" r="4" fill="#f59e0b"/>
+  <text x="798" y="696" class="small">No Full harness or tunnel</text>
+  <circle cx="1072" cy="691" r="4" fill="#f59e0b"/>
+  <text x="1087" y="696" class="small">No automatic merge</text>
+</svg>

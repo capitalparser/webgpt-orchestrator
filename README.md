@@ -155,6 +155,12 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 
 ## The Forge Loop
 
+![Forge Loop flow: request to Chat 6 Pro WebGPT, GitHub PR, immutable-SHA verification, then either a separate failure handoff loop or a protected merge gate.](assets/forge-loop.svg)
+
+The top rail is the one-way delivery path. Test failure follows the separate lower return
+lane; success reaches a protected merge gate. That separation keeps the implementation
+path, feedback loop, and merge decision legible at a glance.
+
 1. `forge --request` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
 2. Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
