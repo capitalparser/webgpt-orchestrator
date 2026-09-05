@@ -11,20 +11,11 @@ neither is privileged — drives the conversation, tests the resulting PR in an 
 checkout, and pushes failures straight back into the same chat. Runs unattended until the
 PR passes or a hard iteration cap is hit. Never merges.
 
-```
-you: "add dark mode" ──▶ coordinator agent ──▶ ChatGPT Web (GitHub connector)
-                              │                        │
-                              │◀──── PR opened ─────────┘
-                              │
-                        isolated test
-                         checkout
-                              │
-                      pass ───┴─── fail
-                       │             │
-                  report to     push failure
-                    human        back into chat
-                  (you merge)     (repeat)
-```
+![Forge Loop flow: request to Chat 6 Pro WebGPT, GitHub PR, immutable-SHA verification, then either a separate failure handoff loop or a protected merge gate.](assets/forge-loop.svg)
+
+The top rail is the one-way delivery path. Test failure follows the separate lower return
+lane; success reaches a protected merge gate. That separation keeps the implementation
+path, feedback loop, and merge decision legible at a glance.
 
 ## Why this exists
 
@@ -154,12 +145,6 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 `"Review branch protection and merge the PR."` — the tool stops there.
 
 ## The Forge Loop
-
-![Forge Loop flow: request to Chat 6 Pro WebGPT, GitHub PR, immutable-SHA verification, then either a separate failure handoff loop or a protected merge gate.](assets/forge-loop.svg)
-
-The top rail is the one-way delivery path. Test failure follows the separate lower return
-lane; success reaches a protected merge gate. That separation keeps the implementation
-path, feedback loop, and merge decision legible at a glance.
 
 1. `forge --request` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
