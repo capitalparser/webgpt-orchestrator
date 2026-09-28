@@ -23,6 +23,14 @@ user, stored with the Forge Loop state, and placed in the first WebGPT prompt so
 implementation starts from the intended question and outcome rather than a coordinator's
 guess.
 
+Repository-scoped WebGPT tasks use one ChatGPT Project per GitHub `owner/repo`, including
+tasks on this repository. Each new task starts a new conversation inside that Project;
+retries and resumed tasks continue their recorded conversation. The coordinator saves the
+verified repository-to-Project mapping locally and records the Project/conversation URLs
+with each task. It checks Project membership before sending and carries relevant decisions
+forward explicitly, since project placement does not guarantee complete recall. See
+[the routing contract](skills/webgpt-orchestrator/SKILL.md#repository-projects-and-conversation-continuity).
+
 ## Why this exists
 
 ChatGPT Web with the GitHub connector is a genuinely capable coding agent — it can read a
@@ -32,21 +40,25 @@ back → ask WebGPT to fix it → repeat" is real, tedious, human-in-the-middle 
 project automates that loop end to end: a coordinator agent drives the browser, runs the
 tests, and relays results, so the human only shows up to review the final PR.
 
-It does **not** give WebGPT any new capability. WebGPT still only has its GitHub
-connector — no shell, no filesystem, no ability to merge or create repositories. The
+WebGPT uses its GitHub connector for repository access. The coordinator can also supply
+project reference material through the browser; WebGPT receives no local shell or filesystem
+access and does not merge or create repositories. The
 coordinator agent is the only thing that gained anything: a way to type into a chat box and
 read the reply.
 
 ## How it works
 
-Three pieces, each with one job:
+The runtime and its browser runbook:
 
-- **`scripts/forge_loop.py`** — the only part that touches git, GitHub, and the filesystem.
+- **`scripts/forge_loop.py`** — handles GitHub PR metadata, checkouts, tests, and Forge state.
   Resolves PR metadata, clones the immutable PR head SHA into a throwaway directory, runs
   your test commands as argv arrays (never a shell string), redacts secrets/local paths
   from anything that becomes visible, and persists a small JSON state machine
   (`AWAITING_WEBGPT_PR → AWAITING_WEBGPT_FIX/READY_TO_MERGE`, or `BLOCKED_MAX_ITERATIONS`).
   It never touches a browser and never talks to WebGPT directly.
+- **`scripts/project_context.py`** — stores repository-to-Project mappings and attaches
+  them to task state. Missing mappings trigger browser discovery, not immediate creation.
+  It refuses conflicting bindings; it does not automate or attest to the browser UI.
 - **[ego-browser](https://lite.ego.app/ko)-driven conversation** — a coordinator agent
   (any LLM agent with a Bash tool and the `ego-browser` CLI installed) opens or reuses a
   browser tab to chatgpt.com, types the prompt `forge_loop.py` generated, and reads WebGPT's
@@ -71,7 +83,7 @@ was told to use (reporting `PR_URL: NOT_CREATED` with an explanation instead of 
 and after the underlying repo state was fixed, opened a clean one-line-diff PR that the
 loop tested, commented on, and marked `READY_TO_MERGE` — see "Reasoning tier" below for
 what that run also taught us about model settings. This is young software: one real run,
-a thorough unit test suite (34 tests) around the deterministic parts, and multiple rounds
+a local test suite around the deterministic parts, and multiple rounds
 of independent code review on every commit. Read `SKILL.md`'s Boundary and Stop conditions
 sections before pointing it at anything you care about.
 
@@ -159,7 +171,7 @@ structure are exactly what `forge_loop.py` emits). `forge --request` produces:
   "task_space": "webgpt-orchestrator:example-fix",
   "webgpt_question": "<confirmed question>",
   "intent_brief": "Goal: ...\nSuccess: ...\nScope / non-goals: ...\nConstraints: ...\nValidation: ...",
-  "next_action": "Send the confirmed WebGPT question and user intent, then return a PR URL.",
+  "next_action": "Check or establish the repository's ChatGPT Project, attach its routing record, then send the confirmed question inside that Project and return a PR URL.",
   "webgpt_prompt": "Follow the confirmed WebGPT question and user intent below through your existing GitHub connector, open a PR, and return the exact PR URL and head SHA. Do not merge it.\n\n## Confirmed WebGPT question\n<confirmed question>\n\n## Confirmed user intent\n<confirmed brief>\n\n## Implementation request\n<your request>\n\nReply with the pull request URL on its own trailing line as `PR_URL: <url>`."
 }
 ```
@@ -183,13 +195,16 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
 
 ## The Forge Loop
 
-0. Before `forge --request` or any browser action, the coordinator confirms the exact
+0. On first invocation, resolve the repository and check its Project using the procedure
+   below. Before `forge --request` or sending a WebGPT question, the coordinator confirms the exact
    WebGPT question and delegation brief above with the user in its CLI/chat. A clear,
    current user request may be restated as confirmation; a skill reference or unresolved
    material choice requires one focused question before any WebGPT prompt is sent.
 1. `forge --request --webgpt-question "<confirmed question>" --intent-brief "<confirmed brief>"` creates `state.json`, optionally provisioning a new repo first
    (`--new-repo`, private unless `--public`), and generates the prompt WebGPT will see.
-2. Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
+2. Attach the verified repository Project to the state with `project_context.py attach`.
+   Open a new task chat inside it, or resume the recorded conversation.
+   Before every prompt, the coordinator agent verifies it is in standard Chat—not ChatGPT
    Work or Codex—and selects the `6 Pro` model-picker label. It then attaches the GitHub
    connector when it is missing. If standard Chat or that exact model is unavailable, it
    stops without sending a prompt from Work or with a fallback model.
@@ -208,6 +223,38 @@ passes, `status` becomes `READY_TO_MERGE` and `next_action` becomes
    `READY_TO_MERGE`, don't merge. Hit `--max-iterations` (default 5) → stop, report
    `BLOCKED_MAX_ITERATIONS`, don't keep retrying.
 
+## Project setup on first use
+
+Every repository-scoped WebGPT task starts by checking its Project connection, including
+planning, research, review, and work on this orchestrator. A skill mention or edit alone does
+not create a Project. Project discovery may precede question confirmation; sending the
+question still requires the existing intent preflight.
+
+```text
+python3 scripts/project_context.py lookup --repository owner/repo
+# After inspecting the account and finding an existing Project, or creating one if absent:
+python3 scripts/project_context.py bind --repository owner/repo --project-url <observed-project-home-url> --project-name "<name>"
+# After creating a Forge state or a planning/research task JSON record:
+python3 scripts/project_context.py attach --repository owner/repo --state <state.json>
+# Once the task conversation URL is visible:
+python3 scripts/project_context.py attach --repository owner/repo --state <state.json> --conversation-url <observed-conversation-url>
+```
+
+Mappings live in `~/.local/share/webgpt-orchestrator/projects/<owner>/<repo>.json`, shared
+by the Codex and Claude installations. Each command accepts `--registry <directory>` for
+an alternate registry or isolated tests. `PROJECT_NOT_LINKED` means search existing Projects
+first, including Projects with descriptive names. Keep an existing matching Project and its
+name; create `owner/repo` only after confirming there is no match. Recheck the current
+account/workspace and membership even with a saved mapping. Conflicting or stale mappings
+require resolution rather than silent replacement.
+
+The coordinator also maintains source provenance/version records, checks upload completion
+and account limits, and carries a concise handoff into a new Project chat when needed.
+Source management remains an agent/browser procedure; the routing CLI does not upload or
+synchronize files. See [Project setup and sources](skills/webgpt-orchestrator/references/project-context.md)
+for the full procedure, source-limit handling, and official references. Python rejects a PR
+from a different repository when resuming a bound Forge state, before any test or PR comment.
+
 ## Required Chat model: `6 Pro`
 
 Every WebGPT conversation turn — planning, implementation, test handoff, and retry — uses
@@ -219,8 +266,8 @@ Chat or `6 Pro` is unavailable for the current account, the cycle stops with
 
 ## Safety boundaries
 
-- WebGPT gets no new capability — GitHub connector only, ever. No shell, no filesystem,
-  no Full harness, no OpenAI Tunnel.
+- WebGPT uses GitHub for repository access; project sources are supplied by the coordinator.
+  No local shell, filesystem tools, Full harness, or OpenAI Tunnel are exposed to WebGPT.
 - WebGPT never creates repositories. `--new-repo` provisions them via `gh repo create`
   (private by default) *before* WebGPT is even prompted; WebGPT is told which repo to use.
 - Tests run only against the immutable PR head SHA, in a fresh temporary clone, deleted
@@ -253,13 +300,14 @@ python3 scripts/forge_loop.py forge --pr <owner/repository#number> --commands-js
 ## Testing
 
 ```bash
-python3 -m pytest tests/test_forge_loop.py -v
+python3 -m pytest tests -v
 ```
 
-34 tests, all against fake subprocess runners — no network, no real `gh`/`git` calls, no
-browser. Covers PR parsing, redaction, isolated-checkout behavior, the full cycle state
+Tests use fake GitHub runners and isolated local CLI invocations — no network, real
+`gh`/`git` calls, or browser. Covers PR parsing, redaction, isolated-checkout behavior, the full cycle state
 machine (including the `max_iterations` cap and repo-provisioning failure paths), and
-CLI argument validation.
+CLI argument validation, persistent Project bindings, concurrent mapping conflicts,
+invalid routing records, and preservation of Project context across Forge resumes.
 
 ## MCP server (optional, separate surface)
 
@@ -275,7 +323,10 @@ Configured via `.mcp.json`.
 scripts/forge_loop.py                 deterministic core: git, gh, tests, redaction, state machine
 scripts/mcp_server.py                 narrow MCP surface (optional, separate from the main loop)
 skills/webgpt-orchestrator/SKILL.md   the runbook a coordinator agent follows
-tests/test_forge_loop.py              34 tests against fake runners
+scripts/project_context.py            local Project mapping and task binding CLI
+tests/test_forge_loop.py              Forge tests against fake runners
+tests/test_project_context.py         isolated Project CLI tests
+skills/webgpt-orchestrator/references/project-context.md  Project and source procedures
 commands.example.json                 example test-command profile
 commands.smoke.json                   minimal smoke-test profile
 .codex-plugin/plugin.json             Codex plugin manifest
