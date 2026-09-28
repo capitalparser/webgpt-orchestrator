@@ -1,6 +1,6 @@
 ---
 name: webgpt-orchestrator
-description: Use when automating software delivery through WebGPT, Codex, and Claude with GitHub pull requests as the implementation boundary.
+description: Use for repository-scoped WebGPT planning, research, review, project context management, and GitHub PR delivery coordinated by Codex or Claude.
 ---
 
 # WebGPT Orchestrator
@@ -10,14 +10,34 @@ workflow is **Forge Loop**: plan, implement through GitHub, verify an immutable 
 review, hand off feedback, and repeat until the merge gate is ready or a stop condition
 is reached.
 
-Use this skill when WebGPT is implementing through its existing GitHub connector and the
-coordinator agent — Claude Code or Codex CLI, either has equal authority to run this skill —
-must drive the WebGPT conversation and verify the resulting pull request.
+Use this skill when the coordinator agent — Claude Code or Codex CLI — drives WebGPT
+for repository-scoped work. Start with project discovery below for planning, research,
+review, and implementation. Use Forge Loop when the intended artifact is a GitHub PR;
+planning or source-management tasks do not require creating a PR or Forge state.
+
+## First use: check the repository's Project
+
+When invoked to do repository-scoped work, resolve the target `owner/repo` and run
+`python3 scripts/project_context.py lookup --repository <owner/repo>` before the first
+WebGPT turn. Follow [Project setup and sources](references/project-context.md) to check the
+actual ChatGPT account/workspace, reuse a matching Project, or create one if none exists.
+This is a required initial step, including for work on this orchestrator repository.
+
+A missing local record means **not linked yet**, not that no Project exists. Search existing
+Projects, including descriptive names that differ from the repository name, before creating.
+Keep the existing name when linking an established Project. Once the task is authorized and
+the repository is clear, ordinary project setup does not require a separate approval turn.
+Do not create a Project merely because this skill was mentioned, read, or edited.
+
+On later invocations, reuse the saved mapping and verify it is still accessible and belongs
+to the intended work. New tasks get new chats inside that Project; retries reopen the
+recorded chat. Project setup does not authorize sending an unconfirmed WebGPT question.
 
 ## Boundary
 
-- WebGPT uses GitHub only. Do not enable or request the Full harness, OpenAI Tunnel, local
-  shell, or local filesystem tools for WebGPT.
+- WebGPT uses GitHub for repository reads and writes. The coordinator may add task-relevant
+  project sources through the browser. Do not enable or request the Full harness, OpenAI
+  Tunnel, local shell, or local filesystem tools for WebGPT.
 - WebGPT never creates repositories. When a new repository is required, the coordinator
   agent creates it via `gh repo create` (private by default; `--public` must be explicit)
   before starting the WebGPT conversation, and tells WebGPT which repository to use.
@@ -25,8 +45,10 @@ must drive the WebGPT conversation and verify the resulting pull request.
   checkout.
 - Never run a test command through a shell string. Commands come from a JSON array
   configuration.
-- Loading, referencing, or mentioning this skill does **not** authorize opening ChatGPT,
-  creating a Forge state, or sending a WebGPT prompt. Before every new initial handoff, stay
+- Loading, referencing, or mentioning this skill alone does **not** authorize creating a
+  Forge state or sending a WebGPT prompt. For an invoked repository task, project discovery
+  may happen before the question is finalized; source upload or project creation requires
+  a clear authorized task and repository. Before every new initial handoff, stay
   in the coordinator's CLI/chat conversation and confirm the exact **WebGPT question** with
   the user: the action or answer requested from WebGPT and the expected artifact or reply.
   If the user only asks to start or reference the skill, ask what WebGPT should be asked;
@@ -74,9 +96,13 @@ iterate with WebGPT
 finish the Forge Loop
 ```
 
-`plan`/`implement`/`iterate`/`finish` start or continue the Forge Loop described
-below; `status <PR>` and `test <PR>` are narrower one-shot calls into `status`/`test`
-and do not themselves drive the WebGPT conversation.
+`plan` uses the repository Project and a task-specific JSON record; it does not invoke
+Forge or request a PR unless the user also requests PR delivery. Research and review follow
+the same route when their artifact is an answer or document. Confirm the question and intent,
+complete Project setup, then send that confirmed task directly in a Project chat.
+`implement` and PR-oriented `iterate`/`finish` use the Forge Loop below. `status <PR>` and
+`test <PR>` are narrower one-shot calls into `status`/`test` and do not themselves drive the
+WebGPT conversation.
 
 From the plugin directory:
 
@@ -108,7 +134,7 @@ repo). It is only valid together with `--request`; combining it with `--pr` is r
 After the CLI question and intent are confirmed, run this procedure directly — do not stop
 for another human confirmation between steps unless a stop condition below applies:
 
-0. **CLI question-and-intent preflight — before `forge --request` or any browser action.**
+0. **CLI question-and-intent preflight — before `forge --request` or prompt submission.**
    Keep the conversation in the coordinator's CLI/chat and write a short, user-visible
    delegation brief with: (a) the exact question or task for WebGPT and its expected
    artifact/reply, then (b) goal, success criteria, scope/non-goals, constraints, and
@@ -127,11 +153,13 @@ for another human confirmation between steps unless a stop condition below appli
    descriptive `--state` filename per concurrent cycle — see Boundary for what goes wrong
    if two cycles collide on the same task space.
 2. Using ego-browser (`ego-browser nodejs <<'EOF' ... EOF` via Bash), open or reuse the
-   task space's chatgpt.com tab.
+   task space's chatgpt.com tab, completing **First use** and the linked project setup
+   procedure below. Attach the verified mapping to the state with `project_context.py attach`. For a repository-scoped new task, create the conversation inside that repository's
+   ChatGPT Project; for a retry or resumed task, reopen its recorded conversation.
    - Use a standard **Chat** conversation, never ChatGPT Work or Codex. Before **every**
      `webgpt_prompt` or `webgpt_handoff` submission, verify the surface is Chat and inspect
-     the model picker. If the tab is in Work, open a standard Chat conversation; do not send
-     the WebGPT prompt from Work.
+     the model picker. If the tab is in Work, return to the repository's Project and open
+     the task's standard Chat conversation there; do not send the WebGPT prompt from Work.
    - In Chat, select the model-picker button whose whitespace-normalized text is **`6 Pro`**.
      The current picker exposes this as `6` followed by `Pro` on the next line. Verify that
      exact normalized label before sending; do not treat `High`, `Extra High`, automatic
@@ -144,7 +172,7 @@ for another human confirmation between steps unless a stop condition below appli
      observed to be missing.
 3. Type the current prompt into the conversation and submit — `webgpt_prompt` on the
    first turn, `webgpt_handoff` on every retry turn.
-4. Observe with `snapshotText`/`wait` until the reply is explicitly finished (there is no
+4. Observe with the current ego-browser skill's `snapshot()` and bounded waits until the reply is explicitly finished (there is no
    fixed selector for this — read the current page state each round and judge). The WebGPT
    response deadline is unbounded: never set or infer a cumulative or wall-clock timeout.
    Use only short, bounded `wait()` calls (at most 60 seconds per call) so each round can
@@ -173,6 +201,19 @@ for another human confirmation between steps unless a stop condition below appli
 8. If the result is `BLOCKED_MAX_ITERATIONS`: stop and report to the user — do not keep
    retrying past the cap.
 
+### Repository projects and conversation continuity
+
+Follow [Project setup and sources](references/project-context.md) for discovery, creation,
+local mapping commands, source maintenance, limits, and conversation handoff. All WebGPT
+browser entrypoints in this skill use that procedure. One-shot GitHub `status`/`test` calls
+and MCP PR tools do not open ChatGPT and do not need project setup.
+
+Before every submission, verify the Project, Chat surface, model, and connector in the UI.
+A saved mapping is a routing aid, not proof of current account access or Project membership.
+If discovery is ambiguous or the Project is unavailable, report
+`BLOCKED_PROJECT_UNAVAILABLE`; do not silently use a global new chat or create duplicates.
+A standalone chat is allowed only for work with no project scope or an explicit user exception.
+
 ### Required Chat model: `6 Pro`
 
 Use standard Chat with `6 Pro` for every WebGPT turn in a Forge Loop: planning,
@@ -193,8 +234,8 @@ Stop and report `BLOCKED_MODEL_UNAVAILABLE` if the standard Chat surface or mode
 cannot be verified, or if it does not offer `6 Pro`. Do not use ChatGPT Work,
 Codex, or a fallback model.
 
-Stop and report `BLOCKED_DELEGATION_UNCONFIRMED` before creating a Forge state, opening
-ChatGPT, or sending a first WebGPT prompt if the WebGPT question or intent brief is missing,
+Stop and report `BLOCKED_DELEGATION_UNCONFIRMED` before creating a Forge state or
+sending a first WebGPT prompt if the WebGPT question or intent brief is missing,
 lacks a material field, or has not been confirmed by the user. Do not treat a coordinator's
 inference as confirmation.
 

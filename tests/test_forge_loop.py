@@ -31,6 +31,19 @@ INTENT_BRIEF = (
 WEBGPT_QUESTION = "Implement dark mode in the existing web app, open a PR, and report its URL."
 
 
+def test_resume_rejects_other_repository_before_testing_or_posting(tmp_path):
+    state_path = tmp_path / "task.json"
+    original = {"request": "Fix widget", "repository": "acme/widget", "iteration": 0}
+    state_path.write_text(json.dumps(original))
+
+    def forbidden_runner(*args, **kwargs):
+        pytest.fail("must reject the wrong repository before calling GitHub")
+
+    with pytest.raises(ValueError, match="repository"):
+        resume_cycle(state_path, "acme/other#1", [["true"]], post_comment=True, runner=forbidden_runner)
+    assert json.loads(state_path.read_text()) == original
+
+
 def test_parse_pr_url_returns_repository_and_number():
     assert parse_pr_reference("https://github.com/acme/widget/pull/42") == ("acme/widget", 42)
 
@@ -119,7 +132,7 @@ def test_start_cycle_creates_webgpt_handoff_state(tmp_path):
 
     assert result["status"] == "AWAITING_WEBGPT_PR"
     assert result["request"] == "Add dark mode"
-    assert result["next_action"] == "Send the confirmed WebGPT question and user intent, then return a PR URL."
+    assert result["next_action"] == "Check or establish the repository's ChatGPT Project, attach its routing record, then send the confirmed question inside that Project and return a PR URL."
     assert json.loads(state_path.read_text())["iteration"] == 0
 
 
@@ -160,6 +173,12 @@ def test_start_cycle_includes_confirmed_webgpt_question_in_handoff(tmp_path):
 def test_resume_cycle_updates_state_and_returns_merge_gate(tmp_path):
     state_path = tmp_path / "cycle.json"
     start_cycle("Add dark mode", state_path, intent_brief=INTENT_BRIEF, webgpt_question=WEBGPT_QUESTION)
+    routing = {
+        "repository": "acme/widget",
+        "project_url": "https://chatgpt.com/g/g-p-widget/project",
+        "conversation_url": "https://chatgpt.com/g/g-p-widget/c/task-1",
+    }
+    state_path.write_text(json.dumps({**json.loads(state_path.read_text()), **routing}))
     sha = "d" * 40
 
     def fake_runner(argv, **kwargs):
@@ -179,6 +198,8 @@ def test_resume_cycle_updates_state_and_returns_merge_gate(tmp_path):
     assert result["report"]["status"] == "TEST_PASSED"
     assert result["next_action"] == "Review branch protection and merge the PR."
     assert json.loads(state_path.read_text())["iteration"] == 1
+    assert all(result[key] == value for key, value in routing.items())
+    assert all(json.loads(state_path.read_text())[key] == value for key, value in routing.items())
 
 
 def test_mcp_tools_expose_only_pr_cycle_operations():

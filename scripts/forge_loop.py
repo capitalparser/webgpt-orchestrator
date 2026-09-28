@@ -322,7 +322,7 @@ def start_cycle(
         "iteration": 0,
         "max_iterations": max_iterations,
         "task_space": derive_task_space(state_path),
-        "next_action": "Send the confirmed WebGPT question and user intent, then return a PR URL.",
+        "next_action": "Check or establish the repository's ChatGPT Project, attach its routing record, then send the confirmed question inside that Project and return a PR URL.",
         "webgpt_prompt": (
             repository_notice
             + "Follow the confirmed WebGPT question and user intent below through your existing GitHub connector, "
@@ -355,6 +355,10 @@ def resume_cycle(
         raise ValueError(f"cannot read Forge Loop state: {state_path}") from error
     if not isinstance(state, dict) or not isinstance(state.get("request"), str):
         raise ValueError("Forge Loop state is invalid")
+    if state.get("repository") is not None:
+        repository, _ = parse_pr_reference(pr_ref)
+        if not isinstance(state["repository"], str) or state["repository"].lower() != repository.lower():
+            raise ValueError("pull request repository does not match the task's project binding")
     max_iterations = int(state.get("max_iterations", 5))
     current_iteration = int(state.get("iteration", 0))
     if current_iteration >= max_iterations:
