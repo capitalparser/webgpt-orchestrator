@@ -96,9 +96,13 @@ iterate with WebGPT
 finish the Forge Loop
 ```
 
-`plan`/`implement`/`iterate`/`finish` start or continue the Forge Loop described
-below; `status <PR>` and `test <PR>` are narrower one-shot calls into `status`/`test`
-and do not themselves drive the WebGPT conversation.
+`plan` uses the repository Project and a task-specific JSON record; it does not invoke
+Forge or request a PR unless the user also requests PR delivery. Research and review follow
+the same route when their artifact is an answer or document. Confirm the question and intent,
+complete Project setup, then send that confirmed task directly in a Project chat.
+`implement` and PR-oriented `iterate`/`finish` use the Forge Loop below. `status <PR>` and
+`test <PR>` are narrower one-shot calls into `status`/`test` and do not themselves drive the
+WebGPT conversation.
 
 From the plugin directory:
 

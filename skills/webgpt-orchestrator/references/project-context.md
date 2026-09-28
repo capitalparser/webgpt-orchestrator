@@ -9,8 +9,10 @@ Run commands from the orchestrator installation root (`SKILL.md` is under `skill
 
 1. Resolve the intended GitHub `owner/repo` from the user's task or PR. For work on the
    current repository, inspect its Git remote; worktree and branch names are not repository
-   identities. If `--new-repo` is requested, create the GitHub repository first and use its
-   returned identity. Resolve ambiguity in the coordinator conversation.
+   identities. If `--new-repo` is requested, let `forge --request --new-repo` provision the
+   GitHub repository once, after the intent preflight. Then perform Project discovery with
+   its returned repository identity, before sending the prompt. Do not manually provision
+   the repository and then pass `--new-repo` again. Resolve ambiguity in the coordinator conversation.
 2. Look up the local record:
    `python3 scripts/project_context.py lookup --repository <owner/repo>`.
    Records are shared by Codex and Claude at
